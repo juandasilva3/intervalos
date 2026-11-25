@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Intervalos">
+<meta name="theme-color" content="#1c1c1e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>Intervalos</title>
+<style>
+  :root {
+    --bg: #1c1c1e;
+    --bg2: #2a2a2d;
+    --line: #3a3a3d;
+    --text: #f5f5f5;
+    --muted: #8e8e93;
+    --prepare: #ffe14d;
+    --work: #7dff4d;
+    --rest: #ff4d4d;
+    --rounds: #4db8ff;
+    --cycles: #ffe14d;
+    --cyclerest: #ffa94d;
+    --cooldown: #4db8ff;
+    --done: #b38cff;
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    overscroll-behavior: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; touch-action: manipulation;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  .num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .caps { text-transform: uppercase; letter-spacing: 0.02em; }
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ---------- SETUP ---------- */
+  .topbar {
+    padding: calc(var(--safe-top) + 10px) 18px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--line); background: var(--bg);
+  }
+  .topbar h1 { margin: 0; font-size: 22px; font-weight: 800; }
+  .topbar .link { color: var(--work); font-weight: 700; font-size: 17px; }
+  .presets {
+    display: flex; gap: 8px; overflow-x: auto; padding: 12px 18px; scrollbar-width: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .presets::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; padding: 8px 14px; border-radius: 999px; background: var(--bg2);
+    font-size: 14px; font-weight: 700; white-space: nowrap; border: 1px solid transparent;
+  }
+  .chip.on { border-color: var(--work); color: var(--work); }
+  .chip.add { color: var(--muted); }
+  .list { flex: 1; overflow-y: auto; padding: 0 18px 20px; }
+  .row {
+    display: flex; align-items: center; gap: 14px; width: 100%;
+    padding: 16px 0; border-bottom: 1px solid var(--line); text-align: left;
+  }
+  .dot { width: 22px; height: 22px; border-radius: 50%; flex: none; }
+  .row .label { flex: 1; min-width: 0; }
+  .row .label b { display: block; font-size: 20px; font-weight: 800; }
+  .row .label small { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; font-weight: 600; }
+  .row .val { font-size: 40px; font-weight: 800; }
+  .chev { color: var(--muted); font-size: 24px; margin-left: 4px; }
+  .total-line { text-align: center; color: var(--muted); padding: 14px 0 4px; font-weight: 700; }
+  .total-line span { color: var(--text); }
+  .startbar { padding: 12px 18px calc(var(--safe-bottom) + 12px); background: var(--bg); }
+  .bigbtn {
+    width: 100%; padding: 18px; border-radius: 18px; background: var(--work); color: #111;
+    font-size: 22px; font-weight: 900;
+  }
+
+  /* Sheet editor */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 10; }
+  .sheet-bg.show { display: block; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg2);
+    border-radius: 22px 22px 0 0; padding: 18px 18px calc(var(--safe-bottom) + 18px);
+  }
+  .sheet h2 { margin: 0 0 6px; font-size: 20px; text-align: center; font-weight: 800; }
+  .sheet .big { text-align: center; font-size: 84px; font-weight: 900; margin: 4px 0 12px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .steps button {
+    padding: 16px 0; border-radius: 14px; background: var(--bg); font-size: 20px; font-weight: 800;
+  }
+  .steps button:active { background: var(--line); }
+  .sheet .ok { margin-top: 14px; }
+
+  /* ---------- TIMER ---------- */
+  #timer { background: var(--bg); }
+  .tbar {
+    padding: calc(var(--safe-top) + 6px) 16px 8px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .iconbtn {
+    width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--bg2);
+  }
+  .iconbtn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .tcenter { text-align: center; }
+  .tcenter .name { font-size: 16px; font-weight: 800; color: var(--muted); }
+  .tcenter .remain { font-size: 30px; font-weight: 900; }
+  .progress { height: 5px; background: var(--bg2); }
+  .progress div { height: 100%; width: 0; background: var(--text); transition: width .2s linear; }
+
+  .current {
+    flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    color: #111; transition: background-color .25s; min-height: 0;
+  }
+  .current .phase { font-size: clamp(44px, 14vw, 90px); font-weight: 900; line-height: 1; }
+  .current .clock { font-size: clamp(110px, 33vw, 260px); font-weight: 900; line-height: .95; margin-top: 4px; }
+  .current .hint { font-size: 15px; font-weight: 700; opacity: .6; margin-top: 8px; }
+  .next {
+    padding: 12px 0 14px; text-align: center; color: #111; transition: background-color .25s;
+  }
+  .next .phase { font-size: 20px; font-weight: 800; opacity: .8; }
+  .next .clock { font-size: 56px; font-weight: 900; line-height: 1; }
+
+  .controls {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+    padding: 14px 12px calc(var(--safe-bottom) + 14px);
+  }
+  .counter { text-align: center; }
+  .counter .n { font-size: 64px; font-weight: 900; line-height: 1; }
+  .counter .l { font-size: 15px; font-weight: 800; color: var(--text); margin-top: 4px; }
+  .counter.rounds .n { color: var(--rounds); }
+  .counter.cycles .n { color: var(--cycles); }
+  .play {
+    width: 112px; height: 112px; border-radius: 50%; background: var(--prepare); color: #111;
+    display: grid; place-items: center; box-shadow: inset 0 0 0 6px rgba(0,0,0,.18);
+    transition: background-color .25s, transform .1s;
+  }
+  .play:active { transform: scale(.95); }
+  .play svg { width: 46px; height: 46px; fill: currentColor; }
+  .skips { display: flex; justify-content: space-around; margin-top: 8px; }
+  .skips button { color: var(--muted); font-size: 13px; font-weight: 800; padding: 6px 8px; white-space: nowrap; }
+
+  .flash { animation: flash .35s ease-out; }
+  @keyframes flash { from { filter: brightness(1.6); } to { filter: brightness(1); } }
+</style>
+</head>
+<body>
+
+<!-- ================= SETUP ================= -->
+<section id="setup" class="screen active">
+  <div class="topbar">
+    <button class="link caps" id="btnSavePreset" style="color:var(--muted)">Renombrar</button>
+    <h1 class="caps" id="presetTitle">Tabata</h1>
+    <button class="link caps" id="btnDeletePreset" style="color:var(--rest)">Borrar</button>
+  </div>
+  <div class="presets" id="presets"></div>
+  <div class="list" id="rows"></div>
+  <div class="startbar">
+    <div class="total-line caps">Duración total <span class="num" id="totalTime">0:00</span></div>
+    <button class="bigbtn caps" id="btnGo">Ir al timer</button>
+  </div>
+</section>
+
+<div class="sheet-bg" id="sheetBg">
+  <div class="sheet" id="sheet">
+    <h2 class="caps" id="sheetTitle">Work</h2>
+    <div class="big num" id="sheetVal">0:45</div>
+    <div class="steps" id="sheetSteps"></div>
+    <button class="bigbtn caps ok" id="sheetOk">Listo</button>
+  </div>
+</div>
+
+<!-- ================= TIMER ================= -->
+<section id="timer" class="screen">
+  <div class="tbar">
+    <button class="iconbtn" id="btnBack" aria-label="Ajustes">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+    <div class="tcenter">
+      <div class="name caps" id="tName">Tabata</div>
+      <div class="remain num" id="tRemain">0:00</div>
+    </div>
+    <button class="iconbtn" id="btnReset" aria-label="Reiniciar">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+  </div>
+  <div class="progress"><div id="prog"></div></div>
+
+  <div class="current" id="cur">
+    <div class="phase caps" id="curPhase">Prepare</div>
+    <div class="clock num" id="curClock">00:05</div>
+    <div class="hint" id="curHint">Toca para empezar</div>
+  </div>
+  <div class="next" id="nxt">
+    <div class="phase caps" id="nxtPhase">Work</div>
+    <div class="clock num" id="nxtClock">00:45</div>
+  </div>
+
+  <div class="controls">
+    <div class="counter rounds"><div class="n num" id="roundsLeft">4</div><div class="l caps">Rondas</div></div>
+    <button class="play" id="btnPlay" aria-label="Play">
+      <svg viewBox="0 0 24 24" id="playIcon"><path d="M7 4.5v15l13-7.5z"/></svg>
+    </button>
+    <div class="counter cycles"><div class="n num" id="cyclesLeft">1</div><div class="l caps">Ciclos</div></div>
+  </div>
+  <div class="skips" style="padding-bottom: calc(var(--safe-bottom) + 6px); margin-top:-6px">
+    <button class="caps" id="btnPrev">⏮ Anterior</button>
+    <button class="caps" id="btnSound">🔊 Sonido</button>
+    <button class="caps" id="btnNext">Siguiente ⏭</button>
+  </div>
+</section>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------- Config & presets ----------------
+  const FIELDS = [
+    { key: 'prepare',   name: 'Preparar',       desc: 'Cuenta atrás antes de empezar', color: 'var(--prepare)',   time: true,  min: 0 },
+    { key: 'work',      name: 'Trabajo',        desc: 'Haz el ejercicio este tiempo',  color: 'var(--work)',      time: true,  min: 1 },
+    { key: 'rest',      name: 'Descanso',       desc: 'Descansa este tiempo',          color: 'var(--rest)',      time: true,  min: 0 },
+    { key: 'rounds',    name: 'Rondas',         desc: 'Una ronda = trabajo + descanso', color: 'var(--rounds)',   time: false, min: 1 },
+    { key: 'cycles',    name: 'Ciclos',         desc: 'Un ciclo = {rounds} rondas',     color: 'var(--cycles)',   time: false, min: 1 },
+    { key: 'cycleRest', name: 'Descanso entre ciclos', desc: 'Recuperación',           color: 'var(--cyclerest)', time: true, min: 0 },
+    { key: 'cooldown',  name: 'Vuelta a la calma', desc: 'Enfriamiento al terminar',  color: 'var(--cooldown)',  time: true,  min: 0 },
+  ];
+
+  const DEFAULT_PRESETS = [
+    { name: 'Club 45/60', prepare: 5, work: 45, rest: 60, rounds: 4, cycles: 1, cycleRest: 30, cooldown: 30 },
+    { name: 'Tabata', prepare: 10, work: 20, rest: 10, rounds: 8, cycles: 1, cycleRest: 60, cooldown: 0 },
+    { name: 'HIIT 40/20', prepare: 10, work: 40, rest: 20, rounds: 6, cycles: 3, cycleRest: 60, cooldown: 60 },
+  ];
+
+  const LS = 'intervalos.v1';
+  let store;
+  try { store = JSON.parse(localStorage.getItem(LS)); } catch (e) {}
+  if (!store || !Array.isArray(store.presets) || !store.presets.length) {
+    store = { presets: DEFAULT_PRESETS.map(p => ({ ...p })), current: 0, sound: true };
+  }
+  const persist = () => localStorage.setItem(LS, JSON.stringify(store));
+  const cfg = () => store.presets[store.current] || store.presets[0];
+
+  // ---------------- Helpers ----------------
+  const $ = id => document.getElementById(id);
+  const fmt = (s, pad = false) => {
+    s = Math.max(0, Math.round(s));
+    const m = Math.floor(s / 60), r = s % 60;
+    if (!pad && m === 0) return ':' + String(r).padStart(2, '0');
+    return (pad ? String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0');
+  };
+
+  // Build the full sequence of phases from config
+  function buildPhases(c) {
+    const ph = [];
+    const add = (type, label, dur, round, cycle) => { if (dur > 0) ph.push({ type, label, dur, round, cycle }); };
+    add('prepare', 'Preparar', c.prepare, 0, 1);
+    for (let cy = 1; cy <= c.cycles; cy++) {
+      for (let r = 1; r <= c.rounds; r++) {
+        add('work', 'Trabajo', c.work, r, cy);
+        if (r < c.rounds) add('rest', 'Descanso', c.rest, r, cy);
+      }
+      if (cy < c.cycles) add('cyclerest', 'Descanso ciclo', c.cycleRest, c.rounds, cy);
+    }
+    add('cooldown', 'Calma', c.cooldown, c.rounds, c.cycles);
+    let t = 0;
+    ph.forEach(p => { p.start = t; t += p.dur; });
+    return ph;
+  }
+  const totalOf = ph => ph.reduce((a, p) => a + p.dur, 0);
+
+  // ---------------- Setup screen ----------------
+  function renderPresets() {
+    const box = $('presets');
+    box.innerHTML = '';
+    store.presets.forEach((p, i) => {
+      const b = document.createElement('button');
+      b.className = 'chip caps' + (i === store.current ? ' on' : '');
+      b.textContent = p.name;
+      b.onclick = () => { store.current = i; persist(); renderSetup(); };
+      box.appendChild(b);
+    });
+    const add = document.createElement('button');
+    add.className = 'chip add caps';
+    add.textContent = '+ Nuevo';
+    add.onclick = () => {
+      const name = prompt('Nombre del nuevo entrenamiento:', 'Mi rutina');
+      if (!name) return;
+      store.presets.push({ ...cfg(), name: name.trim().slice(0, 24) });
+      store.current = store.presets.length - 1; persist(); renderSetup();
+    };
+    box.appendChild(add);
+  }
+
+  function renderRows() {
+    const c = cfg();
+    const box = $('rows');
+    box.innerHTML = '';
+    FIELDS.forEach(f => {
+      const b = document.createElement('button');
+      b.className = 'row';
+      const v = f.time ? fmt(c[f.key]) : c[f.key];
+      b.innerHTML = `<span class="dot" style="background:${f.color}"></span>
+        <span class="label"><b class="caps">${f.name}</b><small class="caps">${f.desc.replace('{rounds}', c.rounds)}</small></span>
+        <span class="val num">${v}</span><span class="chev">›</span>`;
+      b.onclick = () => openSheet(f);
+      box.appendChild(b);
+    });
+  }
+
+  function renderSetup() {
+    $('presetTitle').textContent = cfg().name;
+    $('totalTime').textContent = fmt(totalOf(buildPhases(cfg())), true);
+    renderPresets();
+    renderRows();
+  }
+
+  $('btnSavePreset').onclick = () => {
+    const name = prompt('Renombrar entrenamiento:', cfg().name);
+    if (!name) return;
+    cfg().name = name.trim().slice(0, 24); persist(); renderSetup();
+  };
+  $('btnDeletePreset').onclick = () => {
+    if (store.presets.length <= 1) { alert('Debe quedar al menos un entrenamiento.'); return; }
+    if (!confirm(`¿Borrar "${cfg().name}"?`)) return;
+    store.presets.splice(store.current, 1);
+    store.current = 0; persist(); renderSetup();
+  };
+
+  // Value editor sheet
+  let editing = null;
+  function openSheet(f) {
+    editing = f;
+    $('sheetTitle').textContent = f.name;
+    const steps = f.time ? [-10, -1, +1, +10] : [-5, -1, +1, +5];
+    const sb = $('sheetSteps');
+    sb.innerHTML = '';
+    steps.forEach(d => {
+      const b = document.createElement('button');
+      b.className = 'num';
+      b.textContent = (d > 0 ? '+' : '−') + Math.abs(d) + (f.time ? 's' : '');
+      let rep, rep2;
+      const bump = () => {
+        const c = cfg();
+        c[f.key] = Math.min(f.time ? 3599 : 99, Math.max(f.min, c[f.key] + d));
+        updateSheet();
+      };
+      const stop = () => { clearTimeout(rep); clearInterval(rep2); };
+      b.addEventListener('pointerdown', e => { e.preventDefault(); bump(); rep = setTimeout(() => { rep2 = setInterval(bump, 80); }, 400); });
+      b.addEventListener('pointerup', stop);
+      b.addEventListener('pointerleave', stop);
+      b.addEventListener('pointercancel', stop);
+      sb.appendChild(b);
+    });
+    updateSheet();
+    $('sheetBg').classList.add('show');
+  }
+  function updateSheet() {
+    const v = cfg()[editing.key];
+    $('sheetVal').textContent = editing.time ? fmt(v, true) : v;
+  }
+  function closeSheet() { $('sheetBg').classList.remove('show'); persist(); renderSetup(); }
+  $('sheetOk').onclick = closeSheet;
+  $('sheetBg').onclick = e => { if (e.target === $('sheetBg')) closeSheet(); };
+
+  // ---------------- Audio ----------------
+  let actx = null;
+  function initAudio() {
+    // iOS 17+: play even with the silent switch on
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) actx = new AC();
+    }
+    if (actx && actx.state !== 'running') actx.resume();
+    // unlock with a silent buffer
+    if (actx) {
+      const b = actx.createBuffer(1, 1, 22050);
+      const s = actx.createBufferSource(); s.buffer = b; s.connect(actx.destination); s.start(0);
+    }
+  }
+  function beep(freq = 880, dur = 0.12, vol = 0.6, when = 0) {
+    if (!store.sound || !actx) return;
+    const t = actx.currentTime + when;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  const sounds = {
+    tick: () => beep(880, 0.12, 0.5),
+    go:   () => beep(1320, 0.45, 0.7),
+    rest: () => beep(520, 0.45, 0.7),
+    done: () => { beep(1320, 0.18, 0.7, 0); beep(1320, 0.18, 0.7, 0.25); beep(1760, 0.6, 0.7, 0.5); },
+  };
+
+  // ---------------- Wake lock ----------------
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && 'wakeLock' in navigator && !wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch (e) { wakeLock = null; }
+  }
+
+  // ---------------- Timer engine ----------------
+  const COLORS = {
+    prepare: 'var(--prepare)', work: 'var(--work)', rest: 'var(--rest)',
+    cyclerest: 'var(--cyclerest)', cooldown: 'var(--cooldown)', done: 'var(--done)',
+  };
+  let phases = [], total = 0;
+  let running = false, elapsedBase = 0, startedAt = 0;
+  let lastIdx = -1, lastSec = -1, finished = false, raf = null;
+
+  const elapsed = () => running ? elapsedBase + (performance.now() - startedAt) / 1000 : elapsedBase;
+
+  function indexAt(t) {
+    for (let i = 0; i < phases.length; i++) if (t < phases[i].start + phases[i].dur) return i;
+    return phases.length; // done
+  }
+
+  function resetTimer() {
+    running = false; finished = false;
+    phases = buildPhases(cfg()); total = totalOf(phases);
+    elapsedBase = 0; lastIdx = -1; lastSec = -1;
+    $('tName').textContent = cfg().name;
+    keepAwake(false);
+    render(true);
+  }
+
+  function setPlaying(on) {
+    if (finished && on) { resetTimer(); }
+    if (on === running) return;
+    if (on) {
+      initAudio();
+      if (elapsedBase === 0) (phases[0] && phases[0].type === 'work') ? sounds.go() : sounds.tick();
+      startedAt = performance.now(); running = true; keepAwake(true); loop();
+    }
+    else { elapsedBase = elapsed(); running = false; keepAwake(false); }
+    render(true);
+  }
+
+  function jumpTo(t) {
+    elapsedBase = Math.max(0, Math.min(total, t));
+    if (running) startedAt = performance.now();
+    finished = false; lastSec = -1;
+    render(true);
+  }
+
+  function loop() {
+    if (!running) return;
+    render(false);
+    raf = requestAnimationFrame(loop);
+  }
+
+  function render(force) {
+    const t = elapsed();
+    const idx = indexAt(t);
+    const c = cfg();
+
+    // Finished
+    if (idx >= phases.length) {
+      if (!finished) {
+        finished = true; running = false; elapsedBase = total; keepAwake(false);
+        if (lastIdx !== -1) sounds.done();
+      }
+      lastIdx = idx;
+      paint({ type: 'done', label: 'Terminado' }, 0, null, 0, 0, 1, 'Toca ▶ para repetir');
+      return;
+    }
+
+    const p = phases[idx];
+    const remain = p.start + p.dur - t;
+    const sec = Math.ceil(remain - 1e-6);
+
+    // Sounds: phase change + last 3 seconds
+    if (running) {
+      if (idx !== lastIdx) {
+        (p.type === 'work') ? sounds.go() : sounds.rest();
+        flash();
+        lastSec = sec;
+      } else if (sec !== lastSec) {
+        if (sec <= 3 && sec >= 1) sounds.tick();
+        lastSec = sec;
+      }
+    }
+    if (idx !== lastIdx) force = true;
+    lastIdx = idx;
+
+    // Rounds/cycles left (counting the current one)
+    const roundsLeft = p.type === 'prepare' ? c.rounds
+      : p.type === 'cooldown' ? 0
+      : p.type === 'cyclerest' ? c.rounds
+      : c.rounds - p.round + 1;
+    const cyclesLeft = p.type === 'prepare' ? c.cycles
+      : p.type === 'cooldown' ? 0
+      : p.type === 'cyclerest' ? c.cycles - p.cycle
+      : c.cycles - p.cycle + 1;
+
+    const hint = running ? '' : (t === 0 ? 'Toca para empezar' : 'En pausa');
+    paint(p, sec, phases[idx + 1] || null, roundsLeft, cyclesLeft, t / total, hint, force);
+  }
+
+  let lastPaint = '';
+  function paint(p, sec, next, roundsLeft, cyclesLeft, prog, hint, force) {
+    const key = [p.type, p.label, sec, next && next.label, roundsLeft, cyclesLeft, hint, running, Math.floor(prog * 400)].join('|');
+    if (!force && key === lastPaint) return;
+    lastPaint = key;
+
+    const col = COLORS[p.type];
+    $('cur').style.backgroundColor = col;
+    $('curPhase').textContent = p.label;
+    $('curClock').textContent = fmt(sec, true);
+    $('curHint').textContent = hint;
+    if (next) {
+      $('nxt').style.display = '';
+      $('nxt').style.backgroundColor = COLORS[next.type];
+      $('nxtPhase').textContent = 'Siguiente · ' + next.label;
+      $('nxtClock').textContent = fmt(next.dur, true);
+    } else {
+      $('nxt').style.display = 'none';
+    }
+    $('roundsLeft').textContent = roundsLeft;
+    $('cyclesLeft').textContent = cyclesLeft;
+    $('tRemain').textContent = fmt(total - elapsed(), true);
+    $('prog').style.width = (Math.min(1, prog) * 100).toFixed(2) + '%';
+    $('btnPlay').style.backgroundColor = col;
+    $('playIcon').innerHTML = running
+      ? '<path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/>'
+      : '<path d="M7 4.5v15l13-7.5z"/>';
+    $('btnSound').textContent = store.sound ? '🔊 Sonido' : '🔇 Mudo';
+  }
+
+  function flash() {
+    const el = $('cur');
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+
+  // Controls
+  $('btnPlay').onclick = () => setPlaying(!running);
+  $('cur').onclick = () => setPlaying(!running);
+  $('btnReset').onclick = () => { if (elapsed() === 0 || confirm('¿Reiniciar el entrenamiento?')) resetTimer(); };
+  $('btnNext').onclick = () => {
+    const i = indexAt(elapsed());
+    if (i < phases.length) jumpTo(phases[i].start + phases[i].dur);
+  };
+  $('btnPrev').onclick = () => {
+    const t = elapsed(), i = indexAt(t);
+    if (i >= phases.length) { jumpTo(phases[phases.length - 1].start); return; }
+    // within first 2s of a phase → previous phase; otherwise restart this phase
+    if (t - phases[i].start < 2 && i > 0) jumpTo(phases[i - 1].start);
+    else jumpTo(phases[i].start);
+  };
+  $('btnSound').onclick = () => { store.sound = !store.sound; persist(); initAudio(); render(true); };
+
+  $('btnGo').onclick = () => { initAudio(); show('timer'); resetTimer(); };
+  $('btnBack').onclick = () => {
+    if (elapsed() > 0 && !finished && !confirm('¿Salir? Se perderá el progreso.')) return;
+    setPlaying(false); show('setup'); renderSetup();
+  };
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  }
+
+  // Re-acquire wake lock & resync when coming back to the app
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && running) {
+      keepAwake(true);
+      if (actx && actx.state !== 'running') actx.resume();
+      render(true);
+    }
+  });
+
+  // Prevent pinch zoom on iOS
+  document.addEventListener('gesturestart', e => e.preventDefault());
+
+  renderSetup();
+
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
